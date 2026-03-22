@@ -28,15 +28,11 @@ echo ""
 # ---------------------------------------------------------------
 # Conda guard — ROS2 build must use system Python, not conda
 # ---------------------------------------------------------------
-if [ -n "$CONDA_DEFAULT_ENV" ] && [ "$CONDA_DEFAULT_ENV" != "base" ]; then
-    warn "Conda environment '${CONDA_DEFAULT_ENV}' is active."
-    warn "ROS2 colcon build requires system Python 3.12, not conda Python."
-    if ask_yn "Deactivate conda and continue?"; then
-        conda deactivate
-    else
-        error "Aborting. Run 'conda deactivate' first, then re-run install.sh."
-        exit 1
-    fi
+if [ -n "$CONDA_PREFIX" ]; then
+    warn "Conda is active (env: ${CONDA_DEFAULT_ENV:-base})."
+    warn "ROS2 colcon build requires system Python 3.12 — conda Python breaks the build."
+    error "Aborting. Run 'conda deactivate' (repeat if in a named env) then re-run install.sh."
+    exit 1
 fi
 
 # ---------------------------------------------------------------
@@ -66,6 +62,14 @@ if [ ${#MISSING[@]} -gt 0 ]; then
     sudo apt-get install -y "${MISSING[@]}"
 else
     info "All system packages present."
+fi
+
+# empy 3.3.4 is required by ROS2 at build time (system Python, not venv)
+if ! /usr/bin/python3 -c "import em" 2>/dev/null; then
+    info "Installing empy for system Python..."
+    sudo /usr/bin/python3 -m pip install --break-system-packages "empy==3.3.4"
+else
+    info "empy already installed for system Python."
 fi
 
 # ---------------------------------------------------------------
