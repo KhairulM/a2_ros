@@ -3,6 +3,12 @@
 # Source this file, don't execute it: source setup.sh
 # Mode (sim|robot) is controlled by the A2_MODE env var set in the Docker image.
 
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "ERROR: Do not execute this script directly. Source it instead:"
+    echo "  source ./scripts/setup.sh"
+    exit 1
+fi
+
 _SETUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_SETUP_SCRIPT_DIR/common.sh"
 
@@ -29,7 +35,7 @@ fi
 
 # --- ROS2 middleware (controlled by RMW_IMPLEMENTATION in .env) ---
 DEPLOYMENT_SCRIPTS="$WORKSPACE_DIR/src/core/a2_deployment_config/scripts"
-_RMW="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+_RMW="${RMW_IMPLEMENTATION:-rmw_zenoh_cpp}"
 echo "[a2_ros] RMW: $_RMW"
 case "$_RMW" in
     rmw_zenoh_cpp)

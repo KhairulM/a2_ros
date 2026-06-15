@@ -1,6 +1,17 @@
 x-common: &common
   network_mode: host
+  # Share the host IPC namespace so containers use the host's large /dev/shm
+  # instead of the 64 MB default. Required for Zenoh shared-memory transport
+  # (many sim nodes pushing point clouds/images would otherwise hit OS error 12).
+  ipc: host
   privileged: true
+  # Allow the Zenoh SHM watchdog threads to set real-time scheduling priority
+  # (otherwise they warn "error setting scheduling priority OS(1)") and lock
+  # the SHM pools into memory.
+  ulimits:
+    rtprio: 99
+    nice: -20
+    memlock: -1
   # gpus: all
   environment:
     - DISPLAY=${DISPLAY}
@@ -16,8 +27,11 @@ x-vol-x11: &vol-x11
   source: /tmp/.X11-unix
   target: /tmp/.X11-unix
 x-vol-xauth: &vol-xauth
+  # Mount the real X auth cookie. Display managers (e.g. GDM) keep it at
+  # $XAUTHORITY (e.g. /run/user/UID/gdm/Xauthority), not ~/.Xauthority — so
+  # prefer $XAUTHORITY and fall back to ~/.Xauthority when it is unset.
   type: bind
-  source: ~/.Xauthority
+  source: ${XAUTHORITY:-${HOME}/.Xauthority}
   target: /home/ubuntu/.Xauthority
 x-vol-workspace: &vol-workspace
   type: bind
@@ -52,6 +66,8 @@ services:
       args:
         UID: ${HOST_UID:-1000}
         GID: ${HOST_GID:-1000}
+    depends_on:
+      - zenoh_router_sim
     devices:
       - /dev/input/js0:/dev/input/js0
     volumes:
@@ -81,6 +97,9 @@ services:
       args:
         UID: ${HOST_UID:-1000}
         GID: ${HOST_GID:-1000}
+    depends_on:
+      - zenoh_router_robot
+    shm_size: '512m'
     # Intentionally left out until we start testing on the robot
     # devices:
     #   - /dev/input/js0:/dev/input/js0
@@ -101,6 +120,32 @@ services:
       - type: volume
         source: robot_rosdep_cache
         target: /home/ubuntu/.ros
+
+  # ---- Zenoh discovery routers --------------------------------------------
+  # The Zenoh router (rmw_zenohd) is a per-machine discovery singleton. Start
+  # the one matching your workflow before launching nodes, e.g.:
+  #   docker compose up -d zenoh_router_sim
+  # It listens on tcp/0.0.0.0:7447 over the host network. Point client nodes at
+  # it with ZENOH_ROUTER_IP_SIM / ZENOH_ROUTER_IP_ROBOT in your .env (these are
+  # consumed by scripts/setup_zenoh.sh; default is localhost).
+  # NOTE: run only ONE router per host — they share TCP port 7447.
+  zenoh_router_sim:
+    <<: *common
+    build:
+      context: .
+      dockerfile: ./environment/Dockerfile.dev
+      target: a2_base
+    restart: unless-stopped
+    command: [ "ros2", "run", "rmw_zenoh_cpp", "rmw_zenohd" ]
+
+  zenoh_router_robot:
+    <<: *common
+    build:
+      context: .
+      dockerfile: ./environment/Dockerfile.dev
+      target: a2_base
+    restart: unless-stopped
+    command: [ "ros2", "run", "rmw_zenoh_cpp", "rmw_zenohd" ]
 
 volumes:
   dev_bash_history:
