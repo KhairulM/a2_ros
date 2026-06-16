@@ -50,7 +50,7 @@ def generate_launch_description():
     )
 
     urdf_path = os.path.join(description_dir, 'urdf', 'a2.urdf')
-    rviz_path = os.path.join(description_dir, 'rviz', 'default.rviz')
+    rviz_path = os.path.join(description_dir, 'rviz', 'robot.rviz')
 
     bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -74,7 +74,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(hesai_launch_dir, 'start_launch.py')
         ),
-        launch_arguments={'config_file': LaunchConfiguration('lidar_config')}.items()
+        launch_arguments={
+            'config_file': LaunchConfiguration('lidar_config'),
+            'rviz': 'false',
+        }.items()
     )
 
     robot_state_pub_node = Node(
